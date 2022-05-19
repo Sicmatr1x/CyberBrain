@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <!-- import CSS -->
+  <!-- <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css"> -->
+  <link rel="stylesheet" href="./element-ui@2.15.8/lib/theme-chalk/index.css">
+</head>
+
+<body class="body">
+  <div id="app" class="app">
+    <!-- header -->
+    <el-row :gutter="5">
+      <!-- key -->
+      <el-col :span="3">
+        <el-select v-model="searchOpt" placeholder="请选择">
+          <el-option v-for="item in searchOptions" :key="item.value" :label="item.label" :value="item.value">
+          </el-option>
+        </el-select>
+      </el-col>
+      <el-col :span="2">
+        <el-button @click="addSeparator" type="info" plain>:</el-button>
+      </el-col>
+      <el-col :span="3">
+        <el-button @click="clearKeyTextArea" type="warning" plain>Clear</el-button>
+      </el-col>
+      <!-- value -->
+      <el-col :span="2" :offset="2">
+        <el-button @click="addSeparatorInValue" type="info" plain>:</el-button>
+      </el-col>
+      <el-col :span="3">
+        <el-button @click="addKeyValue" type="success" plain>Put</el-button>
+      </el-col>
+      <el-col :span="3">
+        <el-button @click="save" type="info" plain>Save</el-button>
+      </el-col>
+      <!-- tags -->
+      <el-col :span="3">
+        <el-select v-model="tagsArray" @change="handleSearchByTags" multiple placeholder="tags">
+          <el-option v-for="item in tagsOptions" :key="item.value" :label="item.label" :value="item.value"></el-option>
+        </el-select>
+      </el-col>
+      <el-col :span="3">
+        <el-button @click="debugWindow" type="info" plain>debug</el-button>
+      </el-col>
+    </el-row>
+
+    <!-- input -->
+    <el-row :gutter="5">
+      <el-col :span="10">
+        <el-input type="textarea" v-model="key" @input="handleSearchMap" placeholder="key"></el-input>
+      </el-col>
+      <el-col :span="10">
+        <el-input type="textarea" v-model="value" placeholder="value"></el-input>
+      </el-col>
+      <el-col :span="4">
+        <el-input type="textarea" v-model="tags" @input="handleSearchByTags" placeholder="tags"></el-input>
+      </el-col>
+    </el-row>
+
+    <!-- table -->
+    <el-row :gutter="5">
+      <el-col :span="24">
+        <el-table :data="keyValueTable" @row-click="handleTableRowClick" style="width: 100%">
+          <el-table-column prop="key"></el-table-column>
+          <el-table-column prop="value.content"></el-table-column>
+          <el-table-column prop="value.tags"></el-table-column>
+          <el-table-column prop="value.time"></el-table-column>
+        </el-table>
+      </el-col>
+    </el-row>
+
+    <el-dialog :visible.sync="visible" title="Debug window">
+      <p>key: {{ key }}</p>
+      <p>value: {{ value }}</p>
+      <p>tags: {{ tags }}</p>
+      <p>tagsArray: {{ tagsArray }}</p>
+      <p>keyValueTable: {{ keyValueTable }}</p>
+    </el-dialog>
+  </div>
+</body>
+<!-- import Vue before Element -->
+<!-- <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script> -->
+<script src="./vue@2.6.14/dist/vue.js"></script>
+<!-- <script src="https://unpkg.com/axios/dist/axios.min.js"></script> -->
+<script src="./axios@0.27.2/dist/axios.min.js"></script>
+<!-- import JavaScript -->
+<!-- <script src="https://unpkg.com/element-ui/lib/index.js"></script> -->
+<script src="./element-ui@2.15.8/lib/index.js"></script>
+<script>
+  new Vue({
+    el: '#app',
+    data: {
+      visible: false,
+      searchOptions: [{
+        value: 'prefix',
+        label: '前缀'
+      }, {
+        value: 'contain',
+        label: '包含'
+      }],
+      searchOpt: 'prefix',
+      tagsOptions: [],
+      tagsArray: [],
+      lastSearchTime: '',
+      brainMap: 'MyBrain',
+      key: '',
+      value: '',
+      tags: '',
+      keyValueTable: []
+    },
+    created: function () {
+      this.keyValueTable = [
+        {
+          key: 'User Hint1',
+          value: {
+            content: 'You could type key to search',
+            time: '',
+            tags: 'test'
+          }
+        },
+        {
+          key: 'User Hint2',
+          value: {
+            content: 'Click Clean button to empty the textarea',
+            time: '',
+            tags: 'test:hint'
+          }
+        }
+      ]
+      this.getTags();
+      this.lastSearchTime = new Date();
+    },
+    computed: {
+      
+    },
+    watch: {
+      tagsArray: function (val) {
+        for (let i = 0; i < val.length; i++) {
+          if (i === 0) {
+            this.tags = val[i];
+          } else {
+            this.tags = this.tags + ':' + val[i];
+          }
+        }
+      }
+    },
+    methods: {
+      clearKeyTextArea: function () {
+        this.key = '';
+        this.value = '';
+        this.tags = '';
+        this.keyValueTable = [];
+      },
+      addSeparator: function () {
+        this.key = this.key + ':';
+      },
+      addSeparatorInValue: function () {
+        this.value = this.value + ':';
+      },
+      getTimeStr: function (time) {
+        console.log(time)
+        if (time) {
+          return time.getFullYear() + '-' + (time.getMonth() + 1) + '-' + time.getDate() + ' ' + time.getHours() + ':' + time.getMinutes() + ':' + time.getSeconds();
+        } else {
+          return ''
+        }
+      },
+      getTags: function () {
+        // Search key
+        axios.get('/maps/' + this.brainMap + '/tags')
+          .then((response) => {
+            if (response.status === 200 && response.data.success) {
+              if (response.data.data === undefined || response.data.data.length === 0) {
+                this.tagsOptions = [];
+              } else {
+                this.tagsOptions = response.data.data.map((v) => {
+                  return { value: v, label: v }
+                });
+                console.log('this.tagsOptions=', this.tagsOptions);
+              }
+            } else {
+              this.$message({
+                message: response.data.message,
+                type: 'warning'
+              });
+            }
+          })
+          .catch((error) => {
+            this.$message({
+              message: 'error:' + JSON.stringify(error),
+              type: 'warning'
+            });
+          });
+      },
+      handleSearchByTags: function () {
+        setTimeout(() => {
+          if (this.key === undefined || this.key === '') {
+            this.searchByTags();
+          } else {
+            this.searchMap();
+          }
+        }, 100);
+      },
+      searchByTags: function () {
+        axios.get('/maps/' + this.brainMap + '/tag/' + this.tags)
+          .then((response) => {
+            if (response.status === 200 && response.data.success) {
+              console.log('response.data=', response.data);
+              if (response.data.data === undefined || response.data.data.length === 0) {
+                this.keyValueTable = [];
+              } else {
+                this.keyValueTable = response.data.data;
+              }
+            } else {
+              this.$message({
+                message: response.data.message,
+                type: 'warning'
+              });
+            }
+          })
+          .catch((error) => {
+            this.$message({
+              message: 'error:' + JSON.stringify(error),
+              type: 'warning'
+            });
+          });
+      },
+      handleSearchMap: function () {
+        let now = new Date();
+        console.log(this.lastSearchTime - now);
+        if (now - this.lastSearchTime >= 200) {
+          this.searchMap();
+          this.lastSearchTime = new Date();
+        }
+      },
+      searchMap: function () {
+        // Search key
+        if (this.key === undefined || this.key === '') {
+          this.keyValueTable = [];
+        }
+        let params = {};
+        if (this.tags !== undefined && this.tags !== '') {
+          params.tags = this.tags;
+        }
+        axios({
+          method: 'get',
+          url: '/maps/' + this.brainMap + '/' + this.searchOpt +'/' + this.key,
+          params: params
+        })
+          .then((response) => {
+            if (response.status === 200 && response.data.success) {
+              console.log('response.data=', response.data);
+              if (response.data.data === undefined || response.data.data.length === 0) {
+                this.keyValueTable = [];
+              } else {
+                this.keyValueTable = response.data.data;
+              }
+              // console.log('_this.keyValueTable=', _this.keyValueTable);
+            } else {
+              this.$message({
+                message: response.data.message,
+                type: 'warning'
+              });
+            }
+          })
+          .catch((error) => {
+            this.$message({
+              message: 'error:' + JSON.stringify(error),
+              type: 'warning'
+            });
+          });
+      },
+      addKeyValue: function () {
+        // Add key value
+        axios.post('/maps/' + this.brainMap, {'key': this.key, 'value': this.value, 'tags': this.tags})
+          .then((response) => {
+            console.log(response);
+            if (response.status === 200 && response.data.success) {
+              this.$message({
+                message: 'Add key value success',
+                type: 'success'
+              });
+            } else {
+              this.$message({
+                message: response.data.message,
+                type: 'warning'
+              });
+            }
+          })
+          .catch((error) => {
+            console.log(error);
+            this.$message({
+              message: 'error:' + JSON.stringify(error),
+              type: 'warning'
+            });
+          });
+      },
+      save: function () {
+        axios.get('/system/save')
+          .then((response) => {
+            if (response.status === 200 && response.data.success) {
+              console.log('response.data=', response.data);
+              this.$message({
+                message: response.data.message,
+                type: 'success'
+              });
+            } else {
+              this.$message({
+                message: response.data.message,
+                type: 'warning'
+              });
+            }
+          })
+          .catch((error) => {
+            this.$message({
+              message: 'error:' + JSON.stringify(error),
+              type: 'error'
+            });
+          });
+      },
+      handleTableRowClick: function (row) {
+        console.log('row=', row);
+        this.key = row.key;
+        this.value = row.value.content;
+        this.tags = row.value.tags;
+      },
+      debugWindow: function () {
+        this.visible = true;
+      }
+    }
+  })
+</script>
+<style>
+  .body {
+    width: 900px;
+  }
+
+  .app {
+    width: 900px;
+  }
+
+  .el-row {
+    margin-bottom: 20px;
+  }
+
+  .el-row.last-child {
+    margin-bottom: 20px;
+    margin-bottom: 0;
+  }
+
+  .el-col {
+    border-radius: 4px;
+  }
+
+  .bg-purple-dark {
+    background: #99a9bf;
+  }
+
+  .bg-purple {
+    background: #d3dce6;
+  }
+
+  .grid-content {
+    border-radius: 4px;
+    min-height: 36px;
+  }
+
+  .row-bg {
+    padding: 10px 0;
+    background-color: #f9fafc;
+  }
+</style>
+
+</html>
