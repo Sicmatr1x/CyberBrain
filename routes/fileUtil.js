@@ -1,6 +1,7 @@
 var express = require('express');
 var router = express.Router();
 const fs = require("fs");
+const crypto = require('crypto');
 
 // Taken from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions
 function escapeRegExp(string) {
@@ -8,6 +9,16 @@ function escapeRegExp(string) {
 }
 function replaceAll(str, match, replacement) {
   return str.replace(new RegExp(escapeRegExp(match), 'g'), () => replacement);
+}
+
+/**
+ * get file md5
+ * @param {Buffer} buffer 
+ */
+function getMd5(buffer) {
+  const hash = crypto.createHash('md5');
+  hash.update(buffer, 'utf8');
+  return hash.digest('hex');
 }
 
 /**
@@ -23,6 +34,7 @@ router.get('/f/:filename/s/:totalNum/seq/:curSeqNo/b/:context', function (req, r
   const totalNum = req.params.totalNum;
   const curSeqNo = req.params.curSeqNo;
   const context = req.params.context;
+  console.log('seq:' + curSeqNo);
   let list = fileContextMap.get(filename);
   if (!list) {
     list = new Array();
@@ -34,12 +46,12 @@ router.get('/f/:filename/s/:totalNum/seq/:curSeqNo/b/:context', function (req, r
   if (list[curSeqNo] !== undefined && list[curSeqNo] !== '') {
     console.log('over write ' + filename + '[' + curSeqNo + ']=' + context);
   }
-  console.log('typeof(context)=', typeof (context));
-  console.log('context=', context);
+  //console.log('typeof(context)=', typeof (context));
+  //console.log('context=', context);
   list[curSeqNo] = replaceAll(replaceAll(context, '-rn-', '\r\n'), '--', '/');
-  console.log(filename + '[' + curSeqNo + ']=' + list[curSeqNo]);
+  //console.log(filename + '[' + curSeqNo + ']=' + list[curSeqNo]);
 
-  res.json(response(true, 'add success!', { 'curSeqNo': curSeqNo }));
+  res.json(response(true, '', { 'curSeqNo': curSeqNo }));
 });
 
 /**
@@ -67,22 +79,29 @@ router.get('/f/:filename', function (req, res, next) {
     }
     let bytes = Buffer.from(base64Str, 'base64');
     let filePath = __dirname + "/" + filename;
+  
+    const md5 = getMd5(bytes);
+    console.log('md5=' + md5);
+
     fs.writeFileSync(filePath, bytes, 'binary');
 
-    res.json(response(true, 'write file success!', filePath));
+    res.json(response(true, 'write file success!', {'path' : filePath, 'md5' : md5}));
   } else {
     res.json(response(false, 'file:' + filename + ' not found!', ''));
   }
 });
 
 /**
- * 
+ * download file
+ * url: /io/download?path=
  */
 router.get('/download', function (req, res, next) {
   const path = req.query.path;
   let filepath = __dirname + "/" + path;
   console.log('download file: ' + filepath);
   const file = fs.readFileSync(filepath, 'binary');
+  const md5 = getMd5(file);
+  console.log('md5=' + md5);
   res.setHeader('Content-Length', file.length);
   res.write(file, 'binary');
   res.end();
