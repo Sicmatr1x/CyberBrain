@@ -69,10 +69,20 @@ fs.access(dataFilePath, fs.constants.F_OK, err => {
     const item = list[i];
     // 根据读取到的mapList，将其转换为map
     item.map = new Map();
+    item.tags = new Set();
     for (let j = 0; j < item.mapList.length; j++) {
       const mapItem = item.mapList[j];
       item.map.set(mapItem.key, mapItem);
+      if (mapItem.tags && mapItem.tags !== '') {
+        let tagStr = mapItem.tags.split(':');
+        for (let k = 0; k < tagStr.length; k++) {
+          if (tagStr[k] && tagStr[k] !== '') {
+            item.tags.add(tagStr[k]);
+          }
+        }
+      }
     }
+    console.log('item.tags=', item.tags);
     // if (item.map) {
     //   item.map = new Map(Object.entries(item.map));
     // } else {

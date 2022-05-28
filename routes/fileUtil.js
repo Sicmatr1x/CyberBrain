@@ -17,7 +17,7 @@ function replaceAll(str, match, replacement) {
  */
 function getMd5(buffer) {
   const hash = crypto.createHash('md5');
-  hash.update(buffer, 'utf8');
+  hash.update(buffer, 'binary');
   return hash.digest('hex');
 }
 
@@ -89,6 +89,27 @@ router.get('/f/:filename', function (req, res, next) {
   } else {
     res.json(response(false, 'file:' + filename + ' not found!', ''));
   }
+});
+
+/**
+ * get file md5
+ * url: /io/md5?path=
+ */
+router.get('/md5', function (req, res, next) {
+  const response = req.app.get('response');
+  const path = req.query.path;
+  let filepath = __dirname + "/" + path;
+  console.log('read file: ' + filepath);
+  fs.access(filepath, fs.constants.F_OK, err => {
+    if (err) {
+      res.json(response(false, 'file:' + filepath + ' not found!', ''));
+    } else {
+      const file = fs.readFileSync(filepath, 'binary');
+      const md5 = getMd5(file);
+      console.log('md5=' + md5);
+      res.json(response(true, 'success!', {'path' : filepath, 'md5' : md5}));
+    }
+  });
 });
 
 /**
